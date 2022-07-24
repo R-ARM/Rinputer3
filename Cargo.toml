@@ -1,0 +1,11 @@
+[package]
+name = "rinputer3"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+clap = { version = "3.2.14", features = ["derive"] }
+evdev = { git = "https://github.com/Maccraft123/evdev.git", branch = "uinput_abs" }
+anyhow = "1.0.58"
+unix-named-pipe = "0.2.0"
+embedded-io = { version = "0.3.0", features = ["std"] }
