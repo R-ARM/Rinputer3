@@ -1,4 +1,5 @@
-use std::{thread, time::Duration};
+use std::thread;
+use std::time::Duration;
 use std::str::FromStr;
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
@@ -10,9 +11,12 @@ use std::io::BufReader;
 use std::io::BufRead;
 use std::io::Write;
 use std::hash::{Hasher, Hash};
+use std::path::Path;
 
 use clap::Parser;
 use anyhow::Result;
+use anyhow::Context;
+use interprocess::os::unix::fifo_file;
 
 use evdev::Device;
 use evdev::InputEvent;
@@ -69,7 +73,8 @@ fn input_handler(tx: Sender<RinputerEvent>, mut dev: Device) -> Result<()> {
     }
 
     println!("Device {} deemed useful", dev.name().unwrap_or("<invalid name>"));
-    dev.grab()?;
+    dev.grab()
+        .with_context(|| format!("Failed to grab device {}", dev.name().unwrap_or("<invalid name>")))?;
     
     let (min_analog, max_analog, min_trig, max_trig) = if let Ok(absinfo) = dev.get_abs_state() {
         (absinfo[AbsoluteAxisType::ABS_X.0 as usize].minimum,
@@ -249,7 +254,8 @@ fn main() -> Result<()> {
     let abs_hat_x = UinputAbsSetup::new(AbsoluteAxisType::ABS_HAT0X, abs_hat);
     let abs_hat_y = UinputAbsSetup::new(AbsoluteAxisType::ABS_HAT0Y, abs_hat);
 
-    let mut uhandle = VirtualDeviceBuilder::new()?
+    let mut uhandle = VirtualDeviceBuilder::new()
+        .context("Failed to create instance of evdev::VirtualDeviceBuilder")?
         .name(b"Microsoft X-Box 360 pad")
         .input_id(input_id)
         .with_keys(&keys)?
@@ -261,7 +267,8 @@ fn main() -> Result<()> {
         .with_absolute_axis(&abs_rz)?
         .with_absolute_axis(&abs_hat_x)?
         .with_absolute_axis(&abs_hat_y)?
-        .build()?;
+        .build()
+        .context("Failed to create uinput device")?;
 
     let (tx, rx) = mpsc::channel();
 
@@ -271,9 +278,12 @@ fn main() -> Result<()> {
     }
     thread::spawn(move || indev_watcher(tx));
 
+    fifo_file::create_fifo(Path::new("/var/run/rinputer.sock"), 0o777)
+        .context("Failed creating fifo at /var/run/rinputer.sock")?;
     let mut output_ipc = OpenOptions::new()
         .read(false).append(true).create(false)
-        .open("/var/run/rinputer.sock")?;
+        .open("/var/run/rinputer.sock")
+        .context("Failed opening /var/run/rinputer.sock")?;
 
     let allowed_keys: HashSet<evdev::Key> = HashSet::from([Key::BTN_SOUTH, Key::BTN_EAST, Key::BTN_NORTH,
         Key::BTN_WEST, Key::BTN_TL, Key::BTN_TR, Key::BTN_SELECT, Key::BTN_START, Key::BTN_MODE, Key::BTN_THUMBL,
