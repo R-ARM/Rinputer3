@@ -66,9 +66,6 @@ fn input_handler(tx: Sender<RinputerEvent>, mut dev: Device) -> Result<()> {
         return Ok(());
     }
 
-    println!("Trying Device {}", dev.name().unwrap_or("<invalid name>"));
-    println!("{}: {} {} {} {}", dev.name().unwrap_or("dupa"), !has_key(&dev, Key::BTN_SOUTH), (has_key(&dev, Key::KEY_LEFTMETA) && dev.input_id().bus_type() == evdev::BusType::BUS_I8042), has_key(&dev, Key::BTN_TOUCH), dev.name().unwrap_or("Microsoft X-Box 360 pad ").starts_with("Microsoft X-Box 360 pad "));
-    
     // ignore list:
     if !has_key(&dev, Key::BTN_SOUTH) && !((has_key(&dev, Key::KEY_LEFTMETA) && dev.input_id().bus_type() == evdev::BusType::BUS_I8042))
         || has_key(&dev, Key::BTN_TOUCH) || dev.name().unwrap_or("Microsoft X-Box 360 pad ").starts_with("Microsoft X-Box 360 pad ") { // steam input
@@ -332,18 +329,18 @@ struct RinputerConfig {
 
 fn steam_quick_access(tx: Sender<RinputerEvent>) {
     tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 1)));
-    thread::sleep(Duration::from_millis(500));
+    thread::sleep(Duration::from_millis(100));
     tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_SOUTH.0, 1)));
-    thread::sleep(Duration::from_millis(500));
+    thread::sleep(Duration::from_millis(100));
     tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_SOUTH.0, 0)));
     tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 0)));
 }
 
 fn steam_keyboard(tx: Sender<RinputerEvent>) {
     tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 1)));
-    thread::sleep(Duration::from_millis(500));
+    thread::sleep(Duration::from_millis(100));
     tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_WEST.0, 1)));
-    thread::sleep(Duration::from_millis(500));
+    thread::sleep(Duration::from_millis(100));
     tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_WEST.0, 0)));
     tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 0)));
 }

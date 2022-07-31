@@ -83,10 +83,9 @@ RinputerConfig(
 		remap: [
 		(InputRemap(
 		    type: "Key",
-		    data: "KEY_F12",
+		    data: "BTN_START",
 		), InputRemap(
-		    type: "Key",
-		    data: "BTN_MODE",
+		    type: "SteamQuickAccess",
 		)),
 		],
 		),
