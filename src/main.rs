@@ -13,6 +13,7 @@ use std::io::Write;
 use std::hash::{Hasher, Hash};
 use std::path::Path;
 use std::path::PathBuf;
+use std::num::Wrapping;
 
 use serde::{Deserialize, Serialize};
 use clap::Parser;
@@ -52,7 +53,7 @@ struct Cli {
 
 #[inline]
 fn remap(x: i32, min: i32, max: i32, outmin: i32, outmax: i32) -> i32 {
-    (x - min) * (outmax - outmin) / (max - min) + outmin
+    (Wrapping(x - min) * Wrapping(outmax - outmin) / Wrapping(max - min) + Wrapping(outmin)).0
 }
 
 fn has_key(dev: &Device, key: evdev::Key) -> bool {
@@ -65,14 +66,12 @@ fn input_handler(tx: Sender<RinputerEvent>, mut dev: Device) -> Result<()> {
         return Ok(());
     }
 
-    // ignore usb keyboards
-    if !has_key(&dev, Key::BTN_SOUTH) {
-        return Ok(());
-    } else if has_key(&dev, Key::KEY_LEFTMETA) && dev.input_id().bus_type() != evdev::BusType::BUS_I8042 {
-        return Ok(());
-    } else if has_key(&dev, Key::BTN_TOUCH) {
-        return Ok(());
-    } else if dev.name().unwrap_or("Microsoft X-Box 360 pad ").starts_with("Microsoft X-Box 360 pad ") { // steam input, note the space
+    println!("Trying Device {}", dev.name().unwrap_or("<invalid name>"));
+    println!("{}: {} {} {} {}", dev.name().unwrap_or("dupa"), !has_key(&dev, Key::BTN_SOUTH), (has_key(&dev, Key::KEY_LEFTMETA) && dev.input_id().bus_type() == evdev::BusType::BUS_I8042), has_key(&dev, Key::BTN_TOUCH), dev.name().unwrap_or("Microsoft X-Box 360 pad ").starts_with("Microsoft X-Box 360 pad "));
+    
+    // ignore list:
+    if !has_key(&dev, Key::BTN_SOUTH) && !((has_key(&dev, Key::KEY_LEFTMETA) && dev.input_id().bus_type() == evdev::BusType::BUS_I8042))
+        || has_key(&dev, Key::BTN_TOUCH) || dev.name().unwrap_or("Microsoft X-Box 360 pad ").starts_with("Microsoft X-Box 360 pad ") { // steam input
         return Ok(());
     }
 
@@ -191,6 +190,9 @@ fn configure(tx: Sender<RinputerEvent>, path: PathBuf) -> Result<()> {
                     println!("Applying remap: {:?}", map);
                     tx.send(RinputerEvent::ConfigUpdate(map.0, map.1))?;
                 }
+                if dev.win600_workaround {
+                    tx.send(RinputerEvent::EnableWin600Workaround)?;
+                }
                 break;
             }
         }
@@ -210,6 +212,7 @@ enum InputRemap {
     Key(Key),
     Abs(AbsoluteAxisType, i32),
     SteamQuickAccess,
+    SteamKeyboard,
 }
 
 impl FromStr for InputRemap {
@@ -230,6 +233,8 @@ impl FromStr for InputRemap {
             return Err(())
         } else if input.contains("SteamQuickAccess") {
             return Ok(InputRemap::SteamQuickAccess);
+        } else if input.contains("SteamKeyboard") {
+            return Ok(InputRemap::SteamKeyboard);
         }
         Err(())
     }
@@ -255,6 +260,7 @@ impl Hash for InputRemap {
                 state.write_u16(a.0);
             },
             InputRemap::SteamQuickAccess => state.write_u8(6),
+            InputRemap::SteamKeyboard => state.write_u8(7),
         }
     }
 }
@@ -274,6 +280,7 @@ impl PartialEq for InputRemap {
                     false
                 },
             InputRemap::SteamQuickAccess => other == &InputRemap::SteamQuickAccess,
+            InputRemap::SteamKeyboard => other == &InputRemap::SteamKeyboard,
         }
     }
 }
@@ -284,10 +291,10 @@ enum RinputerEvent {
     ConfigUpdate(InputRemap, InputRemap),
     PrintConfig,
     ResetConfig,
+    EnableWin600Workaround,
 }
 
 fn bool_false() -> bool {false}
-fn i32_0() -> i32 {0}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct DmiStrings {
@@ -303,8 +310,8 @@ struct DmiStrings {
     #[serde(default = "bool_false")]
     relaxed_vendor: bool,
     remap: Vec<(InputRemap, InputRemap)>,
-    #[serde(default = "i32_0")]
-    workaround_combinations: i32,
+    #[serde(default = "bool_false")]
+    win600_workaround: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -321,6 +328,24 @@ struct RinputerConfig {
     dmi_strings: Vec<DmiStrings>,
     #[serde(rename = "dt_device")]
     dt_strings: Vec<DtStrings>,
+}
+
+fn steam_quick_access(tx: Sender<RinputerEvent>) {
+    tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 1)));
+    thread::sleep(Duration::from_millis(500));
+    tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_SOUTH.0, 1)));
+    thread::sleep(Duration::from_millis(500));
+    tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_SOUTH.0, 0)));
+    tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 0)));
+}
+
+fn steam_keyboard(tx: Sender<RinputerEvent>) {
+    tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 1)));
+    thread::sleep(Duration::from_millis(500));
+    tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_WEST.0, 1)));
+    thread::sleep(Duration::from_millis(500));
+    tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_WEST.0, 0)));
+    tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 0)));
 }
 
 fn main() -> Result<()> {
@@ -384,17 +409,22 @@ fn main() -> Result<()> {
         eprintln!("No config supplied!");
     }
 
-    thread::spawn(move || indev_watcher(tx));
+    let tx4 = tx.clone();
+    thread::spawn(move || indev_watcher(tx4));
 
-    let ipc_path = Path::new("/var/run/rinputer.sock");
-    if !ipc_path.exists() {
-        fifo_file::create_fifo(ipc_path, 0o777)
-            .context("Failed creating fifo at /var/run/rinputer.sock")?;
-    }
-    let mut output_ipc = OpenOptions::new()
-        .read(false).append(true).create(false)
-        .open("/var/run/rinputer.sock")
-        .context("Failed opening /var/run/rinputer.sock")?;
+    let mut output_ipc = if args.enable_ipc {
+        let ipc_path = Path::new("/var/run/rinputer.sock");
+        if !ipc_path.exists() {
+            fifo_file::create_fifo(ipc_path, 0o777)
+                .context("Failed creating fifo at /var/run/rinputer.sock")?;
+        }
+        OpenOptions::new().read(false).append(true).create(false)
+            .open("/var/run/rinputer.sock")
+            .context("Failed opening /var/run/rinputer.sock")?
+    } else {
+        OpenOptions::new().read(false).append(true).create(false)
+            .open("/dev/null")?
+    };
 
     let allowed_keys: HashSet<evdev::Key> = HashSet::from([Key::BTN_SOUTH, Key::BTN_EAST, Key::BTN_NORTH,
         Key::BTN_WEST, Key::BTN_TL, Key::BTN_TR, Key::BTN_SELECT, Key::BTN_START, Key::BTN_MODE, Key::BTN_THUMBL,
@@ -410,16 +440,59 @@ fn main() -> Result<()> {
     ]);
 
 
+    let mut win600_hack = false;
+    let mut seen_g = false;
+    let mut seen_o = false;
     // rinputer-event
     for rev in rx {
         match rev {
             RinputerEvent::InputEvent(ev) => {
                 match ev.kind() {
                     InputEventKind::Key(mut k) => {
+                        // yikes
+                        if win600_hack {
+                            if k == Key::KEY_LEFTMETA && ev.value() == 0 && !seen_o {
+                                let tmp_tx = tx.clone();
+                                if !seen_g {
+                                    thread::spawn(move || steam_quick_access(tmp_tx));
+                                } else {
+                                    let tmp_tx = tx.clone();
+                                    thread::spawn(move || {
+                                        tmp_tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 1)));
+                                        thread::sleep(Duration::from_millis(500));
+                                        tmp_tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 0)));
+                                    });
+                                };
+                            };
+
+                            if k == Key::KEY_G {
+                                seen_g = true;
+                            } else {
+                                seen_g = false;
+                            }
+                            if k == Key::KEY_O {
+                                seen_o = true;
+                            } else {
+                                seen_o = false;
+                            }
+                        }
                         if let Some(map) = remaps.get(&InputRemap::Key(k)) {
                             match map {
                                 InputRemap::Key(new) => k = *new,
-                                InputRemap::SteamQuickAccess => todo!("Steam quick access open is not implemented"),
+                                InputRemap::SteamQuickAccess => { 
+                                    if ev.value() == 1 {
+                                        let tmp_tx = tx.clone();
+                                        thread::spawn(move || steam_quick_access(tmp_tx));
+                                    }
+                                    continue;
+                                },
+                                InputRemap::SteamKeyboard => {
+                                    if ev.value() == 1 {
+                                        let tmp_tx = tx.clone();
+                                        thread::spawn(move || steam_keyboard(tmp_tx));
+                                    }
+                                    continue;
+                                },
                                 InputRemap::Abs(a, v) => {
                                     let out = InputEvent::new(evdev::EventType::ABSOLUTE, a.0, v*ev.value());
                                     uhandle.emit(&[out])?;
@@ -447,7 +520,24 @@ fn main() -> Result<()> {
                                         }
                                     } else { unreachable!() }
                                 }
-                                InputRemap::SteamQuickAccess => todo!("steam quick access"),
+                                InputRemap::SteamQuickAccess => {
+                                    if let InputRemap::Abs(_, trig) = key {
+                                        if ev.value() > *trig {
+                                            let tmp_tx = tx.clone();
+                                            thread::spawn(move || steam_keyboard(tmp_tx));
+                                        } 
+                                    }
+                                    continue;
+                                },
+                                InputRemap::SteamKeyboard => {
+                                    if let InputRemap::Abs(_, trig) = key {
+                                        if ev.value() > *trig {
+                                            let tmp_tx = tx.clone();
+                                            thread::spawn(move || steam_keyboard(tmp_tx));
+                                        } 
+                                    }
+                                    continue;
+                                },
                                 InputRemap::Abs(a, v) => {
                                     let (min, max) = match *a {
                                         AbsoluteAxisType::ABS_HAT0Y => (MIN_OUT_HAT, MAX_OUT_HAT),
@@ -501,6 +591,7 @@ fn main() -> Result<()> {
                 output_ipc.write(out.as_str().as_bytes())?;
                 output_ipc.flush()?;
             }
+            RinputerEvent::EnableWin600Workaround => win600_hack = true,
         }
     }
     
