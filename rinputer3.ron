@@ -1,0 +1,147 @@
+#![enable(implicit_some)]
+#![enable(unwrap_newtypes)]
+#![enable(unwrap_variant_newtypes)]
+RinputerConfig(
+    global_remap: [
+        (InputRemap(
+            type: "Key",
+            data: "BTN_DPAD_UP",
+        ), InputRemap(
+            type: "Abs",
+            data: ("ABS_HAT0Y", -1),
+        )),
+
+        (InputRemap(
+            type: "Key",
+            data: "BTN_DPAD_DOWN",
+        ), InputRemap(
+            type: "Abs",
+            data: ("ABS_HAT0Y", 1),
+        )),
+
+        (InputRemap(
+            type: "Key",
+            data: "BTN_DPAD_LEFT",
+        ), InputRemap(
+            type: "Abs",
+            data: ("ABS_HAT0X", -1),
+        )),
+
+        (InputRemap(
+            type: "Key",
+            data: "BTN_DPAD_RIGHT",
+        ), InputRemap(
+            type: "Abs",
+            data: ("ABS_HAT0X", 1),
+        )),
+
+        (InputRemap(
+            type: "Key",
+            data: "BTN_TL2",
+        ), InputRemap(
+            type: "Abs",
+            data: ("ABS_Z", 256),
+        )),
+
+        (InputRemap(
+            type: "Key",
+            data: "BTN_TR2",
+        ), InputRemap(
+            type: "Abs",
+            data: ("ABS_RZ", 256),
+        )),
+    ],
+    dmi_device: [
+        DmiStrings(
+            display_name: "Aya Neo Next",
+            board_vendor: "AYANEO",
+            board_name: "NEXT",
+            product_vendor: None,
+            product_name: None,
+            enable_i8042: true,
+            relaxed_name: true,
+            relaxed_vendor: false,
+            remap: [
+                (InputRemap(
+                    type: "Key",
+                    data: "KEY_F12",
+                ), InputRemap(
+                    type: "Key",
+                    data: "BTN_MODE",
+                )),
+            ],
+            workaround_combinations: 0,
+        ),
+	DmiStrings(
+		display_name: "Test",
+		board_vendor: "ASUSTeK COMPUTER INC.",
+		product_vendor: None,
+		board_name: "TUF",
+		product_name: None,
+		enable_i8042: false,
+		relaxed_name: true,
+		relaxed_vendor: false,
+		workaround_combinations: 0,
+		remap: [
+		(InputRemap(
+		    type: "Key",
+		    data: "KEY_F12",
+		), InputRemap(
+		    type: "Key",
+		    data: "BTN_MODE",
+		)),
+		],
+		),
+        DmiStrings(
+            display_name: "Anbernic Win600",
+            board_vendor: "Anbernic",
+            board_name: None,
+            product_vendor: None,
+            product_name: "Win600",
+            enable_i8042: true,
+            relaxed_name: false,
+            relaxed_vendor: false,
+            remap: [
+                (InputRemap(
+                    type: "Key",
+                    data: "KEY_G",
+                ), InputRemap(
+                    type: "Key",
+                    data: "BTN_MODE",
+                )),
+
+                (InputRemap(
+                    type: "Key",
+                    data: "KEY_LEFTMETA",
+                ), InputRemap(
+                    type: "SteamQuickAccess",
+                )),
+
+                (InputRemap(
+                    type: "Key",
+                    data: "KEY_O",
+                ), InputRemap(
+                    type: "SteamQuickAccess",
+                )),
+            ],
+            workaround_combinations: 1,
+        ),
+    ],
+    dt_device: [
+        DtStrings(
+            display_name: "Odroid Go Advance",
+            compatible: "hardkernel,odroid-go2",
+            remap: [],
+        ),
+        DtStrings(
+            display_name: "Odroid Go Advance Black Edition",
+            compatible: "hardkernel,odroid-go2-v11",
+            remap: [],
+        ),
+        DtStrings(
+            display_name: "Odroid Go Super",
+            compatible: "hardkernel,odroid-go3",
+            remap: [],
+        ),
+    ],
+)

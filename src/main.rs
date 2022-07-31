@@ -12,7 +12,9 @@ use std::io::BufRead;
 use std::io::Write;
 use std::hash::{Hasher, Hash};
 use std::path::Path;
+use std::path::PathBuf;
 
+use serde::{Deserialize, Serialize};
 use clap::Parser;
 use anyhow::Result;
 use anyhow::Context;
@@ -44,6 +46,8 @@ static MAX_OUT_TRIG: i32 = 255;
 struct Cli {
     #[clap(long, short = 'i')]
     enable_ipc: bool,
+    #[clap(long, short, value_parser)]
+    config: Option<PathBuf>,
 }
 
 #[inline]
@@ -142,7 +146,66 @@ fn reader_ipc(tx: Sender<RinputerEvent>) -> Result<()> {
     }
 }
 
-#[derive(Debug)]
+fn get_dmi(name: &str) -> String {
+    let path = format!("/sys/class/dmi/id/{}", name);
+    match std::fs::read_to_string(&path) {
+        Ok(s) => s.lines().next().unwrap_or("<failed to read>").to_string(),
+        Err(_) => "<failed to read>".to_string()
+    }
+}
+
+fn match_str(inp: &Option<String>, x: &str, relaxed: bool) -> bool {
+    if let Some(template) = inp {
+        if relaxed {
+            template.contains(x) || x.contains(template)
+        } else {
+            template == &x
+        }
+    } else {
+        true
+    }
+}
+
+fn configure(tx: Sender<RinputerEvent>, path: PathBuf) -> Result<()> {
+    println!("Loading config file");
+    let f = File::open(&path)
+        .with_context(|| format!("Failed opening config file {}", path.display()))?;
+    let config: RinputerConfig = ron::de::from_reader(f)?;
+
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+    {
+        println!("Detected x86 device, using DMI IDs");
+        let product_name = get_dmi("product_name");
+        let product_vendor = get_dmi("product_vendor");
+        let board_name = get_dmi("board_name");
+        let board_vendor = get_dmi("board_vendor");
+
+        for dev in config.dmi_strings {
+            let pn_match = match_str(&dev.product_name, &product_name, dev.relaxed_name);
+            let pv_match = match_str(&dev.product_vendor, &product_vendor, dev.relaxed_vendor);
+            let bn_match = match_str(&dev.board_name, &board_name, dev.relaxed_name);
+            let bv_match = match_str(&dev.board_vendor, &board_vendor, dev.relaxed_vendor);
+            if pn_match && pv_match && bn_match && bv_match {
+                println!("Found device match by DMI: {}", dev.display_name);
+                for map in dev.remap {
+                    println!("Applying remap: {:?}", map);
+                    tx.send(RinputerEvent::ConfigUpdate(map.0, map.1))?;
+                }
+                break;
+            }
+        }
+    }
+    #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
+    {
+        todo!("ARM Compatibles");
+        println!("Detected ARM device, using DT compatibles");
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data")]
 enum InputRemap {
     Key(Key),
     Abs(AbsoluteAxisType, i32),
@@ -223,6 +286,43 @@ enum RinputerEvent {
     ResetConfig,
 }
 
+fn bool_false() -> bool {false}
+fn i32_0() -> i32 {0}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct DmiStrings {
+    display_name: String,
+    board_vendor: Option<String>,
+    board_name: Option<String>,
+    product_vendor: Option<String>,
+    product_name: Option<String>,
+    #[serde(default = "bool_false")]
+    enable_i8042: bool,
+    #[serde(default = "bool_false")]
+    relaxed_name: bool,
+    #[serde(default = "bool_false")]
+    relaxed_vendor: bool,
+    remap: Vec<(InputRemap, InputRemap)>,
+    #[serde(default = "i32_0")]
+    workaround_combinations: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct DtStrings {
+    display_name: String,
+    compatible: String,
+    remap: Vec<(InputRemap, InputRemap)>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct RinputerConfig {
+    global_remap: Vec<(InputRemap, InputRemap)>,
+    #[serde(rename = "dmi_device")]
+    dmi_strings: Vec<DmiStrings>,
+    #[serde(rename = "dt_device")]
+    dt_strings: Vec<DtStrings>,
+}
+
 fn main() -> Result<()> {
     let args = Cli::parse();
     let mut keys = evdev::AttributeSet::<Key>::new();
@@ -276,10 +376,21 @@ fn main() -> Result<()> {
         let tx2 = tx.clone();
         thread::spawn(move || reader_ipc(tx2));
     }
+
+    if let Some(conf) = args.config {
+        let tx3 = tx.clone();
+        thread::spawn(move || configure(tx3, conf));
+    } else {
+        eprintln!("No config supplied!");
+    }
+
     thread::spawn(move || indev_watcher(tx));
 
-    fifo_file::create_fifo(Path::new("/var/run/rinputer.sock"), 0o777)
-        .context("Failed creating fifo at /var/run/rinputer.sock")?;
+    let ipc_path = Path::new("/var/run/rinputer.sock");
+    if !ipc_path.exists() {
+        fifo_file::create_fifo(ipc_path, 0o777)
+            .context("Failed creating fifo at /var/run/rinputer.sock")?;
+    }
     let mut output_ipc = OpenOptions::new()
         .read(false).append(true).create(false)
         .open("/var/run/rinputer.sock")
@@ -297,6 +408,7 @@ fn main() -> Result<()> {
         (InputRemap::Key(Key::BTN_TL2),         InputRemap::Abs(AbsoluteAxisType::ABS_Z, 256)),
         (InputRemap::Key(Key::BTN_TR2),         InputRemap::Abs(AbsoluteAxisType::ABS_RZ, 256)),
     ]);
+
 
     // rinputer-event
     for rev in rx {
@@ -373,9 +485,20 @@ fn main() -> Result<()> {
             }
             RinputerEvent::PrintConfig => {
                 output_ipc.write(b"Config:\n")?;
-                for map in &remaps {
-                    output_ipc.write(format!("Remapped {:?} -> {:?}\n", map.0, map.1).as_str().as_bytes())?;
-                }
+                let ext =   ron::extensions::Extensions::UNWRAP_NEWTYPES |
+                            ron::extensions::Extensions::IMPLICIT_SOME |
+                            ron::extensions::Extensions::UNWRAP_VARIANT_NEWTYPES;
+                let pretty = ron::ser::PrettyConfig::new()
+                    .separate_tuple_members(false)
+                    .struct_names(true)
+                    .compact_arrays(false)
+                    .extensions(ext)
+                    .enumerate_arrays(false);
+                let out = ron::ser::to_string_pretty(&remaps, pretty)?;
+                //for map in &remaps {
+                //    output_ipc.write(format!("Remapped {:?} -> {:?}\n", map.0, map.1).as_str().as_bytes())?;
+                //}
+                output_ipc.write(out.as_str().as_bytes())?;
                 output_ipc.flush()?;
             }
         }
