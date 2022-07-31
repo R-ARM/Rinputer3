@@ -1,0 +1,8 @@
+[Unit]
+Description=Ragnarok Input Daemon
+
+[Service]
+ExecStart=/usr/bin/rinputer3 -c /etc/rinputer3.ron
+
+[Install]
+WantedBy=multi-user.target
