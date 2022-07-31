@@ -155,6 +155,7 @@ dependencies = [
 [[package]]
 name = "evdev"
 version = "0.11.5"
+source = "git+https://github.com/Maccraft123/evdev.git?branch=serde_feature#91cd4bfbaad92ee7286a35e8d7acf312249fa7f9"
 dependencies = [
  "bitvec",
  "libc",
