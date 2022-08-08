@@ -69,6 +69,12 @@ RinputerConfig(
                     type: "Key",
                     data: "BTN_MODE",
                 )),
+                 (InputRemap(
+                     type: "Key",
+                     data: "KEY_D",
+                 ), InputRemap(
+                     type: "SteamQuickAccess",
+                 ),
             ],
         ),
 	DmiStrings(
