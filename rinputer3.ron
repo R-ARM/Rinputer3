@@ -74,7 +74,7 @@ RinputerConfig(
                      data: "KEY_D",
                  ), InputRemap(
                      type: "SteamQuickAccess",
-                 ),
+                 )),
             ],
         ),
 	DmiStrings(
