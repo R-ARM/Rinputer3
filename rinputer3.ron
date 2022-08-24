@@ -52,6 +52,31 @@ RinputerConfig(
         )),
     ],
     dmi_device: [
+       DmiStrings(
+            display_name: "Aya Neo Air",
+            board_vendor: "AYANEO",
+            board_name: "AIR",
+            product_vendor: None,
+            product_name: None,
+            enable_i8042: true,
+            relaxed_name: true,
+            relaxed_vendor: false,
+            remap: [
+                (InputRemap(
+                    type: "Key",
+                    data: "KEY_F12",
+                ), InputRemap(
+                    type: "Key",
+                    data: "BTN_MODE",
+                )),
+                (InputRemap(
+                    type: "Key",
+                    data: "KEY_D",
+                ), InputRemap(
+                    type: "SteamQuickAccess",
+                ),
+            ],
+        ),
         DmiStrings(
             display_name: "Aya Neo Next",
             board_vendor: "AYANEO",
@@ -69,29 +94,34 @@ RinputerConfig(
                     type: "Key",
                     data: "BTN_MODE",
                 )),
+                (InputRemap(
+                    type: "Key",
+                    data: "KEY_D",
+                ), InputRemap(
+                    type: "SteamQuickAccess",
+                ),
             ],
-            workaround_combinations: 0,
         ),
-	DmiStrings(
-		display_name: "Test",
-		board_vendor: "ASUSTeK COMPUTER INC.",
-		product_vendor: None,
-		board_name: "TUF",
-		product_name: None,
-		enable_i8042: false,
-		relaxed_name: true,
-		relaxed_vendor: false,
-		workaround_combinations: 0,
-		remap: [
-		(InputRemap(
-		    type: "Key",
-		    data: "KEY_F12",
-		), InputRemap(
-		    type: "Key",
-		    data: "BTN_MODE",
-		)),
-		],
-		),
+        DmiStrings(
+                display_name: "Test",
+                board_vendor: "ASUSTeK COMPUTER INC.",
+                product_vendor: None,
+                board_name: "TUF",
+                product_name: None,
+                enable_i8042: false,
+                relaxed_name: true,
+                relaxed_vendor: false,
+                workaround_combinations: 0,
+                remap: [
+                (InputRemap(
+                    type: "Key",
+                    data: "KEY_F12",
+                ), InputRemap(
+                    type: "Key",
+                    data: "BTN_MODE",
+                )),
+                ],
+            ),
         DmiStrings(
             display_name: "Anbernic Win600",
             board_vendor: "Anbernic",
