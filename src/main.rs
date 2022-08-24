@@ -215,7 +215,7 @@ fn configure(tx: Sender<RinputerEvent>, path: PathBuf) {
                     tx.send(RinputerEvent::EnableWin600Workaround).unwrap();
                 }
                 if dev.win600_workaround {
-                    tx.send(RinputerEvent::EnableWin600Workaround)?;
+                    tx.send(RinputerEvent::EnableWin600Workaround).unwrap();
                 }
                 break;
             }
