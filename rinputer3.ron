@@ -74,7 +74,7 @@ RinputerConfig(
                     data: "KEY_D",
                 ), InputRemap(
                     type: "SteamQuickAccess",
-                ),
+                )),
             ],
         ),
         DmiStrings(
@@ -99,7 +99,7 @@ RinputerConfig(
                     data: "KEY_D",
                 ), InputRemap(
                     type: "SteamQuickAccess",
-                ),
+                )),
             ],
         ),
         DmiStrings(
@@ -111,7 +111,6 @@ RinputerConfig(
                 enable_i8042: false,
                 relaxed_name: true,
                 relaxed_vendor: false,
-                workaround_combinations: 0,
                 remap: [
                 (InputRemap(
                     type: "Key",
@@ -131,30 +130,17 @@ RinputerConfig(
             enable_i8042: true,
             relaxed_name: false,
             relaxed_vendor: false,
+	    win600_workaround: true,
             remap: [
-                (InputRemap(
-                    type: "Key",
-                    data: "KEY_G",
-                ), InputRemap(
-                    type: "Key",
-                    data: "BTN_MODE",
-                )),
-
-                (InputRemap(
-                    type: "Key",
-                    data: "KEY_LEFTMETA",
-                ), InputRemap(
-                    type: "SteamQuickAccess",
-                )),
+		// NOTICE: hardcoded hack
 
                 (InputRemap(
                     type: "Key",
                     data: "KEY_O",
                 ), InputRemap(
-                    type: "SteamQuickAccess",
+                    type: "SteamKeyboard",
                 )),
             ],
-            workaround_combinations: 1,
         ),
     ],
     dt_device: [
