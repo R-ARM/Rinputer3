@@ -55,30 +55,48 @@ fn remap(x: i32, min: i32, max: i32, outmin: i32, outmax: i32) -> i32 {
     (x - min) * (outmax - outmin) / (max - min) + outmin
 }
 
+#[inline]
 fn has_key(dev: &Device, key: evdev::Key) -> bool {
     dev.supported_keys().map_or(false, |keys| keys.contains(key))
 }
 
 fn input_handler(tx: Sender<RinputerEvent>, mut dev: Device) -> Result<()> {
-    // ignore our device
+    let mut useful = false;
+
+    // gamepads
+    if has_key(&dev, Key::BTN_SOUTH) {
+        useful = true;
+    }
+
+    // extra buttons on x86 handhelds
+    // TODO: use config values for this
+    if has_key(&dev, Key::KEY_LEFTMETA) && dev.input_id().bus_type() == evdev::BusType::BUS_I8042 {
+        useful = true;
+    }
+
+    // touchscreens
+    if has_key(&dev, Key::BTN_TOUCH) {
+        useful = false;
+    }
+
+    // rinputer
     if dev.input_id().version() == 0x2137 {
+        useful = false;
+    }
+
+    // steam input, note the space
+    if dev.name().unwrap_or("Microsoft X-Box 360 pad ").starts_with("Microsoft X-Box 360 pad ") {
+        useful = false;
+    }
+
+    if !useful {
         return Ok(());
     }
 
-    // ignore usb keyboards
-    if !has_key(&dev, Key::BTN_SOUTH) {
-        return Ok(());
-    } else if has_key(&dev, Key::KEY_LEFTMETA) && dev.input_id().bus_type() != evdev::BusType::BUS_I8042 {
-        return Ok(());
-    } else if has_key(&dev, Key::BTN_TOUCH) {
-        return Ok(());
-    } else if dev.name().unwrap_or("Microsoft X-Box 360 pad ").starts_with("Microsoft X-Box 360 pad ") { // steam input, note the space
-        return Ok(());
+    match dev.grab() {
+        Ok(()) => println!("Device {} deemed useful", dev.name().unwrap_or("<invalid name>")),
+        Err(_) => return Ok(()), // fail silently in case someone else grabbed it before us
     }
-
-    println!("Device {} deemed useful", dev.name().unwrap_or("<invalid name>"));
-    dev.grab()
-        .with_context(|| format!("Failed to grab device {}", dev.name().unwrap_or("<invalid name>")))?;
     
     let (min_analog, max_analog, min_trig, max_trig) = if let Ok(absinfo) = dev.get_abs_state() {
         (absinfo[AbsoluteAxisType::ABS_X.0 as usize].minimum,
@@ -110,13 +128,13 @@ fn input_handler(tx: Sender<RinputerEvent>, mut dev: Device) -> Result<()> {
 }
 
 fn indev_watcher(tx: Sender<RinputerEvent>) {
-    //loop {
+    loop {
         for device in evdev::enumerate() {
             let new_tx = tx.clone();
             thread::spawn(move || input_handler(new_tx, device.1));
         }
-        thread::sleep(Duration::from_secs(10));
-    //} TODO: refreshing. maybe we should have ipc trigger on that?
+        thread::sleep(Duration::from_secs(1));
+    }
 }
 
 fn reader_ipc(tx: Sender<RinputerEvent>) -> Result<()> {
