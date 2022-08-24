@@ -4,6 +4,13 @@ Maps *every* gamepad under the sun into Xbox 360 gamepad, maintaining 1:1 compat
 Requires read access to /dev/input/event\* and write access to /dev/uinput
 With fully dynamic mapping of *any* button or axis to *any* button or axis
 
+## Installation:
+- Build
+- Copy `Rinputer3.service` into `/etc/systemd/system/`
+- Copy `rinputer3.ron` into `/etc/`(or other path, specified in `Rinputer3.service`)
+- Place `rinputer3` executable into `/bin/`
+
+## IPC/Networking:
 For IPC open socket `/var/run/rinputer.sock` and add `-i` flag
 It's also planned to have a `talk2rinputer`-ish program that would simplify this
 IPC Commands:
