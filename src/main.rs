@@ -108,6 +108,8 @@ fn input_handler(tx: Sender<RinputerEvent>, mut dev: Device) -> Result<()> {
         (0, 0, 0, 0)
     };
 
+    let skip_remap_analog = min_analog == MIN_OUT_ANALOG && max_analog == MAX_OUT_ANALOG;
+
     loop {
         for ev in dev.fetch_events()? {
             match ev.kind() {
@@ -117,7 +119,7 @@ fn input_handler(tx: Sender<RinputerEvent>, mut dev: Device) -> Result<()> {
                         AbsoluteAxisType::ABS_HAT0X => ev.value(), // and 1
                         AbsoluteAxisType::ABS_Z     => remap(ev.value(), min_trig, max_trig, MIN_OUT_TRIG, MAX_OUT_TRIG),
                         AbsoluteAxisType::ABS_RZ    => remap(ev.value(), min_trig, max_trig, MIN_OUT_TRIG, MAX_OUT_TRIG),
-                        _ => remap(ev.value(), min_analog, max_analog, MIN_OUT_ANALOG, MAX_OUT_ANALOG),
+                        _ => if skip_remap_analog { ev.value() } else {remap(ev.value(), min_analog, max_analog, MIN_OUT_ANALOG, MAX_OUT_ANALOG) },
                     };
                     tx.send(RinputerEvent::InputEvent(InputEvent::new(ev.event_type(), ev.code(), val)))?;
                 },
