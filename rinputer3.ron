@@ -130,15 +130,13 @@ RinputerConfig(
             enable_i8042: true,
             relaxed_name: false,
             relaxed_vendor: false,
-	    win600_workaround: true,
             remap: [
-		// NOTICE: hardcoded hack
-
                 (InputRemap(
                     type: "Key",
-                    data: "KEY_O",
+                    data: "KEY_LEFTMETA",
                 ), InputRemap(
-                    type: "SteamKeyboard",
+                    type: "Key"
+                    data: "BTN_META",
                 )),
             ],
         ),

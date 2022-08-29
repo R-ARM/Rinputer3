@@ -161,7 +161,6 @@ fn reader_ipc(tx: Sender<RinputerEvent>) -> Result<()> {
             } else if line.starts_with("reset") {
                 tx.send(RinputerEvent::ResetConfig)?;
             } else if line.starts_with("print") {
-                tx.send(RinputerEvent::PrintConfig)?;
             }
         }
     }
@@ -213,12 +212,6 @@ fn configure(tx: Sender<RinputerEvent>, path: PathBuf) {
                     println!("Applying remap: {:?}", map);
                     tx.send(RinputerEvent::ConfigUpdate(map.0, map.1)).unwrap();
                 }
-                if dev.win600_workaround {
-                    tx.send(RinputerEvent::EnableWin600Workaround).unwrap();
-                }
-                if dev.win600_workaround {
-                    tx.send(RinputerEvent::EnableWin600Workaround).unwrap();
-                }
                 break;
             }
         }
@@ -236,7 +229,6 @@ enum InputRemap {
     Key(Key),
     Abs(AbsoluteAxisType, i32),
     SteamQuickAccess,
-    SteamKeyboard,
 }
 
 impl FromStr for InputRemap {
@@ -257,8 +249,6 @@ impl FromStr for InputRemap {
             return Err(())
         } else if input.contains("SteamQuickAccess") {
             return Ok(InputRemap::SteamQuickAccess);
-        } else if input.contains("SteamKeyboard") {
-            return Ok(InputRemap::SteamKeyboard);
         }
         Err(())
     }
@@ -284,7 +274,6 @@ impl Hash for InputRemap {
                 state.write_u16(a.0);
             },
             InputRemap::SteamQuickAccess => state.write_u8(6),
-            InputRemap::SteamKeyboard => state.write_u8(7),
         }
     }
 }
@@ -304,7 +293,6 @@ impl PartialEq for InputRemap {
                     false
                 },
             InputRemap::SteamQuickAccess => other == &InputRemap::SteamQuickAccess,
-            InputRemap::SteamKeyboard => other == &InputRemap::SteamKeyboard,
         }
     }
 }
@@ -315,7 +303,6 @@ enum RinputerEvent {
     ConfigUpdate(InputRemap, InputRemap),
     PrintConfig,
     ResetConfig,
-    EnableWin600Workaround,
 }
 
 fn bool_false() -> bool {false}
@@ -334,8 +321,6 @@ struct DmiStrings {
     #[serde(default = "bool_false")]
     relaxed_vendor: bool,
     remap: Vec<(InputRemap, InputRemap)>,
-    #[serde(default = "bool_false")]
-    win600_workaround: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -360,15 +345,6 @@ fn steam_quick_access(tx: Sender<RinputerEvent>) {
     tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_SOUTH.0, 1)));
     thread::sleep(Duration::from_millis(100));
     tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_SOUTH.0, 0)));
-    tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 0)));
-}
-
-fn steam_keyboard(tx: Sender<RinputerEvent>) {
-    tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 1)));
-    thread::sleep(Duration::from_millis(100));
-    tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_WEST.0, 1)));
-    thread::sleep(Duration::from_millis(100));
-    tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_WEST.0, 0)));
     tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 0)));
 }
 
@@ -464,42 +440,12 @@ fn main() -> Result<()> {
     ]);
 
 
-    let mut win600_hack = false;
-    let mut seen_g = false;
-    let mut seen_o = false;
     // rinputer-event
     for rev in rx {
         match rev {
             RinputerEvent::InputEvent(ev) => {
                 match ev.kind() {
                     InputEventKind::Key(mut k) => {
-                        // yikes
-                        if win600_hack {
-                            if k == Key::KEY_LEFTMETA && ev.value() == 0 && !seen_o {
-                                let tmp_tx = tx.clone();
-                                if !seen_g {
-                                    thread::spawn(move || steam_quick_access(tmp_tx));
-                                } else {
-                                    let tmp_tx = tx.clone();
-                                    thread::spawn(move || {
-                                        tmp_tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 1)));
-                                        thread::sleep(Duration::from_millis(500));
-                                        tmp_tx.send(RinputerEvent::InputEvent(InputEvent::new(evdev::EventType::KEY, Key::BTN_MODE.0, 0)));
-                                    });
-                                };
-                            };
-
-                            if k == Key::KEY_G {
-                                seen_g = true;
-                            } else {
-                                seen_g = false;
-                            }
-                            if k == Key::KEY_O {
-                                seen_o = true;
-                            } else {
-                                seen_o = false;
-                            }
-                        }
                         if let Some(map) = remaps.get(&InputRemap::Key(k)) {
                             match map {
                                 InputRemap::Key(new) => k = *new,
@@ -507,13 +453,6 @@ fn main() -> Result<()> {
                                     if ev.value() == 1 {
                                         let tmp_tx = tx.clone();
                                         thread::spawn(move || steam_quick_access(tmp_tx));
-                                    }
-                                    continue;
-                                },
-                                InputRemap::SteamKeyboard => {
-                                    if ev.value() == 1 {
-                                        let tmp_tx = tx.clone();
-                                        thread::spawn(move || steam_keyboard(tmp_tx));
                                     }
                                     continue;
                                 },
@@ -548,16 +487,7 @@ fn main() -> Result<()> {
                                     if let InputRemap::Abs(_, trig) = key {
                                         if ev.value() > *trig {
                                             let tmp_tx = tx.clone();
-                                            thread::spawn(move || steam_keyboard(tmp_tx));
-                                        } 
-                                    }
-                                    continue;
-                                },
-                                InputRemap::SteamKeyboard => {
-                                    if let InputRemap::Abs(_, trig) = key {
-                                        if ev.value() > *trig {
-                                            let tmp_tx = tx.clone();
-                                            thread::spawn(move || steam_keyboard(tmp_tx));
+                                            thread::spawn(move || steam_quick_access(tmp_tx));
                                         } 
                                     }
                                     continue;
@@ -615,7 +545,6 @@ fn main() -> Result<()> {
                 output_ipc.write(out.as_str().as_bytes())?;
                 output_ipc.flush()?;
             }
-            RinputerEvent::EnableWin600Workaround => win600_hack = true,
         }
     }
     
