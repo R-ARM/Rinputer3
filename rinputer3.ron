@@ -135,8 +135,8 @@ RinputerConfig(
                     type: "Key",
                     data: "KEY_LEFTMETA",
                 ), InputRemap(
-                    type: "Key"
-                    data: "BTN_META",
+                    type: "Key",
+                    data: "BTN_MODE",
                 )),
             ],
         ),
